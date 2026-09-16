@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Sightline — PWA check</title>
+<style>body{font:14px system-ui;background:#171717;color:#e8e8e8;padding:24px}</style>
+</head><body><pre id="out">checking…</pre>
+<script>
+(function () {
+  var keepalive = setInterval(function () {}, 50);
+  var t0 = Date.now(), report = { origin: location.origin, path: location.pathname };
+
+  function finish() {
+    clearInterval(keepalive);
+    document.getElementById('out').textContent = JSON.stringify(report, null, 2);
+    console.log('PWACHECK ' + JSON.stringify(report));
+  }
+
+  if (!('serviceWorker' in navigator)) {
+    report.error = 'no serviceWorker in navigator';
+    return finish();
+  }
+
+  // Poll rather than await ready(): ready() never resolves when there is no
+  // registration, which is exactly the failure this has to be able to report.
+  (function poll() {
+    navigator.serviceWorker.getRegistrations().then(function (regs) {
+      var active = regs.filter(function (r) { return r.active; });
+      if (active.length || Date.now() - t0 > 15000) {
+        report.registrations = regs.length;
+        report.scopes = regs.map(function (r) { return r.scope; });
+        report.states = regs.map(function (r) {
+          return r.installing ? 'installing' : r.waiting ? 'waiting'
+               : r.active ? 'active' : 'unknown';
+        });
+        report.scriptURLs = regs.map(function (r) {
+          return (r.active || r.waiting || r.installing || {}).scriptURL || null;
+        });
+        report.waitedMs = Date.now() - t0;
+        return finish();
+      }
+      setTimeout(poll, 250);
+    }).catch(function (e) { report.error = String(e); finish(); });
+  })();
+})();
+</script></body></html>
