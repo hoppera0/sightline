@@ -1,8 +1,9 @@
 # Sightline
 
 A drawing and reference aid. Open a picture and it draws the analysis over the top:
-composition guides, perspective and vanishing points, figure pose, and a value /
-block-in breakdown for painting from it.
+composition guides, perspective and vanishing points, figure pose, a Loomis head
+construction fitted to every face it finds, and a value / block-in breakdown for
+painting from it.
 
 **Use it:** https://hoppera0.github.io/sightline/
 
@@ -11,11 +12,12 @@ full screen with no browser bar.
 
 ## How it works
 
-One self-contained HTML page. Everything is inlined — the app, TensorFlow.js and the
-MoveNet pose weights — so after the first load it runs with no network at all.
+One self-contained HTML page. Everything is inlined — the app, TensorFlow.js, the
+MoveNet pose weights and the BlazeFace / FaceMesh face weights — so after the first load
+it runs with no network at all.
 
 **Your pictures never leave your device.** There is no upload, no API call and no
-analytics. Images are read locally in the browser and the pose model runs on-device.
+analytics. Images are read locally in the browser and the pose and face models run on-device.
 The service worker only ever caches this page's own files back from this same origin.
 
 ## Why this repo is public
@@ -41,5 +43,8 @@ place to edit anything.
 
 - [TensorFlow.js](https://github.com/tensorflow/tfjs) — Apache License 2.0
 - [MoveNet SinglePose Lightning](https://www.kaggle.com/models/google/movenet) — Apache License 2.0
+- [MediaPipe BlazeFace and FaceMesh](https://github.com/google/mediapipe) — Apache License 2.0.
+  TF.js conversions from [@vladmandic/human-models](https://github.com/vladmandic/human-models) — MIT
 
-Both are bundled inside `index.html`. Their licence text ships with them in that file.
+All of them are bundled inside `index.html`. The TensorFlow.js and MoveNet licence text ships
+with them in that file; the face models carry a licence note beside their weights.
