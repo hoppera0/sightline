@@ -10,6 +10,19 @@ painting from it.
 On Android, Chrome's menu offers **Install app** / **Add to Home screen**. It then opens
 full screen with no browser bar.
 
+### Android app
+
+There is also a real Android app (Android 10 or later): open the
+[latest release](https://github.com/hoppera0/sightline/releases/latest) on your phone,
+download **Sightline.apk** and open it. Android asks once to allow installs from your
+browser. Each new build installs over the last one.
+
+It is the same page as the website, packaged with no internet permission at all. Open,
+Save PNG (to Downloads) and sharing a photo to Sightline from the gallery all work. The
+APK is built by GitHub Actions from `android/` and `index.html` whenever either changes on
+`main`. The signing key in `android/` is committed on purpose so updates install cleanly;
+it is fine for sideloading, not for the Play Store.
+
 ## How it works
 
 One self-contained HTML page. Everything is inlined — the app, TensorFlow.js, the
@@ -38,6 +51,8 @@ place to edit anything.
 | `sw.js` | Service worker. Cache-first over a fixed file list, versioned by build hash |
 | `icon-*.png` | App icons, including a maskable one for Android's adaptive shape |
 | `pwa-check.html` | A small health page that reports what the browser has registered |
+| `android/` | The Android app: a WebView around `index.html`, with file picking, saving and sharing |
+| `.github/workflows/android.yml` | Builds the signed APK and publishes it as a release |
 
 ## Credits and licences
 
