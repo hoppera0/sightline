@@ -10,6 +10,17 @@ painting from it.
 On Android, Chrome's menu offers **Install app** / **Add to Home screen**. It then opens
 full screen with no browser bar.
 
+### Studio: more phone apps
+
+[`apps/`](apps/) is a folder of small creative apps for the phone, in the same spirit: one
+file each, nothing uploaded, all working offline once visited. Open
+https://hoppera0.github.io/sightline/apps/ and add **Studio** to the home screen.
+
+- **Glow**: soft gradient wallpapers and posters, saved at full phone resolution.
+- **Loop**: photos (or just a gradient) into a short moving video, recorded on the phone.
+
+[HOME.md](HOME.md) covers running all of it from a home machine over Tailscale.
+
 ### Android app
 
 There is also a real Android app (Android 10 or later): open the
