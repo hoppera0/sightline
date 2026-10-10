@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The app is the same single built page as the website, read from the repository root,
+// so the phone app and the web app can never drift apart.
+def page = rootProject.file('../index.html')
+
+android {
+    namespace 'net.sightline.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'net.sightline.app'
+        minSdk 29
+        targetSdk 34
+        versionCode = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+        versionName = "1.0.${System.getenv('GITHUB_RUN_NUMBER') ?: '0'}"
+    }
+
+    // A fixed key, committed on purpose: each new APK must be signed with the same key
+    // to install over the last one. It is for sideloading a personal app, not the Play
+    // Store, so it is not a secret — anyone with this repository can sign with it.
+    signingConfigs {
+        release {
+            storeFile rootProject.file('sightline.keystore')
+            storePassword 'sightline'
+            keyAlias 'sightline'
+            keyPassword 'sightline'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets {
+        main { assets.srcDir(layout.buildDirectory.dir('generated/page')) }
+    }
+}
+
+def copyPage = tasks.register('copyPage', Copy) {
+    from page
+    into layout.buildDirectory.dir('generated/page')
+}
+tasks.named('preBuild') { dependsOn copyPage }

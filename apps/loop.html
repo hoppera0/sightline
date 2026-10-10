@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf4f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17141d" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/loop.png">
+<title>Loop</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  :root { --accent: linear-gradient(135deg, #84fab0 0%, #8fd3f4 50%, #a18cd1 100%); --accent-glow: #8fd3f4aa; }
+  .btn.primary { color: #16323f; }
+  .stage { display: grid; place-items: center; padding: 10px 0 16px; }
+  .frame { position: relative; }
+  #view { display: block; max-width: 100%; max-height: 54vh; border-radius: 26px;
+          box-shadow: 0 30px 60px -30px rgba(40,70,90,.45), 0 0 0 1px var(--line); }
+  .rec { position: absolute; top: 14px; left: 14px; display: none; align-items: center; gap: 8px;
+         background: rgba(0,0,0,.45); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 13px;
+         backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .rec.on { display: flex; }
+  .rec i { width: 10px; height: 10px; border-radius: 50%; background: #ff5a7a; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  .bar { position: absolute; left: 14px; right: 14px; bottom: 14px; height: 6px; border-radius: 6px;
+         background: rgba(255,255,255,.35); overflow: hidden; display: none; }
+  .bar.on { display: block; }
+  .bar b { display: block; height: 100%; width: 0; background: #fff; border-radius: 6px; }
+  .thumbs { display: flex; gap: 8px; overflow-x: auto; padding: 2px; scrollbar-width: none; }
+  .thumbs::-webkit-scrollbar { display: none; }
+  .thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 18px; flex: none;
+                box-shadow: 0 0 0 1px var(--line); }
+  .add { width: 64px; height: 64px; border-radius: 18px; flex: none; border: 0; font-size: 26px; cursor: pointer;
+         background: var(--chip); color: var(--ink); }
+</style>
+</head>
+<body>
+<header>
+  <a href="./" aria-label="All apps">‹</a>
+  <div><h1>Loop</h1><p>Turn photos into a short moving clip</p></div>
+</header>
+<main>
+  <div class="stage">
+    <div class="frame">
+      <canvas id="view" aria-label="Preview"></canvas>
+      <div class="rec" id="rec"><i></i><span>Recording</span></div>
+      <div class="bar" id="bar"><b></b></div>
+    </div>
+  </div>
+
+  <section class="card">
+    <h2>Photos</h2>
+    <div class="thumbs" id="thumbs"><button class="add" id="add" type="button" aria-label="Add photos">+</button></div>
+    <p class="hint" id="photohint">No photos? It makes a moving gradient instead.</p>
+  </section>
+
+  <section class="card">
+    <h2>Motion</h2>
+    <div class="row" id="motions"></div>
+  </section>
+
+  <section class="card">
+    <h2>Look</h2>
+    <div class="row" id="looks"></div>
+  </section>
+
+  <section class="card">
+    <h2>Shape and length</h2>
+    <div class="row" id="shapes"></div>
+    <div class="row" id="lengths" style="margin-top:8px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Words (optional)</h2>
+    <input type="text" id="words" placeholder="A line that fades in" maxlength="80" autocomplete="off">
+  </section>
+</main>
+
+<div class="dock">
+  <button class="btn" id="clear" type="button">Clear</button>
+  <button class="btn primary" id="make" type="button">Make video</button>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<input id="file" class="visually-hidden" type="file" accept="image/*" multiple aria-label="Add photos">
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const view = $('#view'), vctx = view.getContext('2d');
+  const SHAPES = { 'Story 9:16': [720, 1280], 'Square': [1080, 1080], 'Post 4:5': [864, 1080], 'Wide 16:9': [1280, 720] };
+  const MOTIONS = ['Drift', 'Zoom in', 'Zoom out', 'Pan', 'Pulse'];
+  const LOOKS = ['Full bleed', 'Soft card', 'Dreamy'];
+  const LENGTHS = [5, 10, 15];
+  const BG = ['#a1c4fd', '#c2e9fb', '#e0c3fc', '#ffd1c1', '#84fab0'];
+  const S = { photos: [], motion: 'Drift', look: 'Full bleed', shape: 'Story 9:16', length: 10, words: '' };
+
+  // ---------- one frame, at time t seconds ----------
+  function cover(c, img, W, H, scale, ox, oy) {
+    const k = Math.max(W / img.width, H / img.height) * scale;
+    const w = img.width * k, h = img.height * k;
+    c.drawImage(img, (W - w) / 2 + ox * W, (H - h) / 2 + oy * H, w, h);
+  }
+  function ease(x) { return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; }
+  function motionAt(i, u) {   // u: 0..1 through this photo's turn
+    const dir = i % 2 ? -1 : 1;
+    switch (S.motion) {
+      case 'Zoom in': return [1.0 + 0.18 * ease(u), 0, 0];
+      case 'Zoom out': return [1.18 - 0.18 * ease(u), 0, 0];
+      case 'Pan': return [1.18, dir * (0.07 - 0.14 * u), 0];
+      case 'Pulse': return [1.06 + 0.05 * Math.sin(u * Math.PI * 2), 0, 0];
+      default: return [1.06 + 0.12 * u, dir * 0.03 * (u - 0.5), -0.02 * (u - 0.5)];
+    }
+  }
+  function gradientBg(c, W, H, t) {
+    const m = Math.max(W, H);
+    c.fillStyle = '#f6efff'; c.fillRect(0, 0, W, H);
+    BG.forEach((col, i) => {
+      const a = t * 0.35 + i * 1.7, x = W * (0.5 + 0.38 * Math.cos(a + i)), y = H * (0.5 + 0.38 * Math.sin(a * 1.3 + i * 2));
+      const g = c.createRadialGradient(x, y, 0, x, y, m * 0.55);
+      g.addColorStop(0, col + 'ee'); g.addColorStop(1, col + '00');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+    });
+  }
+  function rounded(c, x, y, w, h, r) {
+    c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+  }
+  function frame(c, W, H, t, dur) {
+    const n = S.photos.length;
+    if (!n) { gradientBg(c, W, H, t); }
+    else {
+      const seg = dur / n, fade = Math.min(0.7, seg * 0.3);
+      const card = S.look === 'Soft card';
+      let x = 0, y = 0, w = W, h = H;
+      if (card) {
+        gradientBg(c, W, H, t);
+        const p = Math.min(W, H) * 0.08; x = p; y = p; w = W - 2 * p; h = H - 2 * p;
+        c.save(); c.shadowColor = 'rgba(40,30,60,.35)'; c.shadowBlur = p * 0.8; c.shadowOffsetY = p * 0.25;
+        rounded(c, x, y, w, h, p * 0.6); c.fillStyle = '#fff'; c.fill(); c.restore();
+        c.save(); rounded(c, x, y, w, h, p * 0.6); c.clip();
+      }
+      const draw = (i, alpha) => {
+        const u = Math.max(0, Math.min(1, (t - i * seg + fade / 2) / (seg + fade)));
+        const [s, ox, oy] = motionAt(i, u);
+        c.save(); c.globalAlpha = alpha; c.translate(x, y); cover(c, S.photos[i], w, h, s, ox, oy); c.restore();
+      };
+      const i = Math.max(0, Math.min(n - 1, Math.floor(t / seg))), into = t - i * seg;
+      draw(i, 1);
+      if (i + 1 < n && into > seg - fade) draw(i + 1, (into - (seg - fade)) / fade);
+      if (card) c.restore();
+      if (S.look === 'Dreamy') {
+        const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.25, W / 2, H / 2, Math.max(W, H) * 0.75);
+        g.addColorStop(0, 'rgba(255,240,250,0)'); g.addColorStop(1, 'rgba(255,214,230,.55)');
+        c.fillStyle = g; c.fillRect(0, 0, W, H);
+        c.save(); c.globalCompositeOperation = 'soft-light'; c.fillStyle = 'rgba(255,190,220,.35)'; c.fillRect(0, 0, W, H); c.restore();
+      }
+    }
+    const words = S.words.trim();
+    if (words) {
+      const a = Math.min(1, Math.max(0, (t - 0.4) / 0.9)), fs = Math.round(Math.min(W, H) * 0.075);
+      c.save(); c.globalAlpha = a;
+      c.font = '800 ' + fs + 'px ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif';
+      c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#fff';
+      c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = fs * 0.5;
+      c.fillText(words, W / 2, H * 0.8 + (1 - a) * fs * 0.4, W * 0.88);
+      c.restore();
+    }
+  }
+
+  // ---------- live preview ----------
+  let t0 = performance.now(), recording = false;
+  function sizeView() {
+    const [W, H] = SHAPES[S.shape], maxW = Math.min(520, $('main').clientWidth - 8), maxH = window.innerHeight * 0.54;
+    const k = Math.min(maxW / W, maxH / H), dpr = Math.min(2, window.devicePixelRatio || 1);
+    view.style.width = Math.round(W * k) + 'px'; view.style.height = Math.round(H * k) + 'px';
+    view.width = Math.round(W * k * dpr); view.height = Math.round(H * k * dpr);
+  }
+  function tick(now) {
+    // rAF's timestamp can be a hair older than a t0 just set by a tap: never go below zero.
+    if (!recording) frame(vctx, view.width, view.height, Math.max(0, (now - t0) / 1000) % S.length, S.length);
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- recording: the canvas itself, in real time ----------
+  function pickType() {
+    const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    return types.find((x) => window.MediaRecorder && MediaRecorder.isTypeSupported(x)) || '';
+  }
+  async function makeVideo() {
+    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) { toast('This browser cannot record video.'); return; }
+    const [W, H] = SHAPES[S.shape], dur = S.length;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    frame(ctx, W, H, 0, dur);
+    const type = pickType(), stream = c.captureStream(30);
+    const rec = new MediaRecorder(stream, type ? { mimeType: type, videoBitsPerSecond: 8e6 } : undefined);
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    const done = new Promise((r) => { rec.onstop = r; });
+    recording = true; setBusy(true);
+    rec.start(250);
+    const start = performance.now();
+    await new Promise((resolve) => {
+      const step = (now) => {
+        const t = (now - start) / 1000;
+        if (t >= dur) { resolve(); return; }
+        frame(ctx, W, H, t, dur);
+        vctx.drawImage(c, 0, 0, view.width, view.height);
+        $('#bar b').style.width = (t / dur * 100).toFixed(1) + '%';
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+    rec.stop(); await done;
+    stream.getTracks().forEach((tr) => tr.stop());
+    recording = false; setBusy(false); t0 = performance.now();
+    const mime = (rec.mimeType || type || 'video/webm').split(';')[0];
+    const blob = new Blob(chunks, { type: mime });
+    await saveBlob(blob, 'loop-' + Date.now() + (mime.includes('mp4') ? '.mp4' : '.webm'));
+  }
+  function setBusy(on) {
+    $('#rec').classList.toggle('on', on); $('#bar').classList.toggle('on', on);
+    $('#make').disabled = on; $('#clear').disabled = on;
+    $('#make').textContent = on ? 'Recording…' : 'Make video';
+    if (!on) $('#bar b').style.width = '0';
+  }
+  async function saveBlob(blob, name) {
+    const file = new File([blob], name, { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Loop' }); toast('Saved'); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    toast('Saved to Downloads');
+  }
+
+  // ---------- controls ----------
+  function chips(host, items, key, label) {
+    for (const it of items) {
+      const b = Object.assign(document.createElement('button'), { className: 'chip', type: 'button', textContent: label ? label(it) : it });
+      b.setAttribute('aria-pressed', String(S[key] === it));
+      b.addEventListener('click', () => {
+        S[key] = it; host.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        if (key === 'shape') sizeView();
+        t0 = performance.now();
+      });
+      host.appendChild(b);
+    }
+  }
+  chips($('#motions'), MOTIONS, 'motion');
+  chips($('#looks'), LOOKS, 'look');
+  chips($('#shapes'), Object.keys(SHAPES), 'shape');
+  chips($('#lengths'), LENGTHS, 'length', (s) => s + ' seconds');
+  $('#words').addEventListener('input', (e) => { S.words = e.target.value; });
+  $('#add').addEventListener('click', () => $('#file').click());
+  $('#file').addEventListener('change', async (e) => {
+    const files = [...e.target.files].slice(0, 12 - S.photos.length);
+    e.target.value = '';
+    for (const f of files) {
+      try {
+        const bmp = await createImageBitmap(f);
+        // Keep each photo no bigger than the video needs, so long slideshows stay light.
+        const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+        const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+        c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
+        S.photos.push(c);
+        const im = new Image(); im.src = c.toDataURL('image/jpeg', 0.6); im.alt = '';
+        $('#thumbs').insertBefore(im, $('#add'));
+      } catch (err) { toast("Couldn't read one of those photos."); }
+    }
+    $('#photohint').textContent = S.photos.length ? S.photos.length + ' photo' + (S.photos.length > 1 ? 's' : '') + ', crossfading.' : 'No photos? It makes a moving gradient instead.';
+    t0 = performance.now();
+  });
+  $('#clear').addEventListener('click', () => {
+    S.photos = []; $('#thumbs').querySelectorAll('img').forEach((x) => x.remove());
+    $('#photohint').textContent = 'No photos? It makes a moving gradient instead.';
+  });
+  $('#make').addEventListener('click', makeVideo);
+
+  let toastT = 0;
+  function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600); }
+
+  window.addEventListener('resize', sizeView);
+  sizeView(); requestAnimationFrame(tick);
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  window.loop = { state: S, frame, makeVideo, pickType };
+})();
+</script>
+</body>
+</html>

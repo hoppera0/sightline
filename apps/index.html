@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf4f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17141d" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/studio-192.png">
+<link rel="apple-touch-icon" href="icons/studio.png">
+<title>Studio</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  .hero { padding: 26px 22px 8px; }
+  .hero h1 { margin: 0; font-size: 34px; letter-spacing: -.02em; line-height: 1.05; }
+  .hero h1 em { font-style: normal; background: linear-gradient(120deg, #ff9a8b, #ff6a88 40%, #a18cd1 70%, #8fd3f4);
+                -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p { margin: 8px 0 0; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 18px; }
+  .app { position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-height: 168px;
+         padding: 16px; border-radius: 28px; color: #fff; text-decoration: none; overflow: hidden;
+         box-shadow: 0 18px 36px -20px rgba(60,40,80,.55); transition: transform .18s; }
+  .app:active { transform: scale(.97); }
+  .app::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.18), transparent 60%); }
+  .app > * { position: relative; z-index: 1; }
+  .app img { position: absolute; top: 14px; left: 14px; width: 52px; height: 52px; border-radius: 16px;
+             box-shadow: 0 6px 16px -6px rgba(0,0,0,.35); z-index: 1; }
+  .app b { font-size: 18px; }
+  .app span { font-size: 13px; opacity: .92; }
+  .app.wide { grid-column: span 2; min-height: 120px; }
+  .list a { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 4px; color: var(--ink);
+            text-decoration: none; border-radius: 16px; }
+  .list a + a { border-top: 1px solid var(--line); }
+  .list i { width: 40px; height: 40px; border-radius: 14px; flex: none; display: grid; place-items: center; font-style: normal;
+            background: var(--chip); font-size: 18px; }
+  .list small { display: block; color: var(--muted); font-size: 13px; }
+  .install { display: none; }
+  .install.on { display: block; }
+</style>
+</head>
+<body>
+<section class="hero">
+  <h1>Your little <em>studio</em></h1>
+  <p>Make pictures and videos on your phone. Nothing is uploaded anywhere.</p>
+</section>
+<main>
+  <div class="grid">
+    <a class="app" href="glow.html" style="background:linear-gradient(135deg,#ffd1c1,#ff9a8b 50%,#a18cd1)">
+      <img src="icons/glow-192.png" alt=""><b>Glow</b><span>Gradient wallpapers and posters</span>
+    </a>
+    <a class="app" href="loop.html" style="background:linear-gradient(135deg,#84fab0,#8fd3f4 50%,#a18cd1)">
+      <img src="icons/loop-192.png" alt=""><b>Loop</b><span>Photos into a moving clip</span>
+    </a>
+    <a class="app wide" href="../" style="background:linear-gradient(135deg,#2b2633,#5b4a7a 60%,#a18cd1)">
+      <img src="../icon-192.png" alt=""><b>Sightline</b><span>Drawing guides, pose, Loomis heads and values</span>
+    </a>
+  </div>
+
+  <section class="card install" id="install">
+    <h2>Keep it on your phone</h2>
+    <button class="btn primary" id="installBtn" type="button" style="width:100%;max-width:none">Add Studio to home screen</button>
+  </section>
+
+  <section class="card list">
+    <h2>More</h2>
+    <a href="https://github.com/hoppera0/sightline/releases/latest"><i>⬇</i><div>Sightline for Android<small>The installable APK</small></div></a>
+    <a href="https://github.com/hoppera0/sightline/blob/main/HOME.md"><i>⌂</i><div>Run it from home<small>Your home machine over Tailscale</small></div></a>
+  </section>
+</main>
+<script>
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; document.getElementById('install').classList.add('on'); });
+  document.getElementById('installBtn').addEventListener('click', async () => {
+    if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null;
+    document.getElementById('install').classList.remove('on');
+  });
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
